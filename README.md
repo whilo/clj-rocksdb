@@ -1,19 +1,18 @@
 # clj-rocksdb
 This is a self-contained wrapper around [RocksDB](https://rocksdb.org), which provides all the necessary binaries via [RocksDB Java API](https://github.com/facebook/rocksdb/tree/master/java/src/main/java/org/rocksdb).
 
-The source code and the documentation is hevaily based on [Factual/clj-leveldb](https://github.com/Factual/clj-leveldb) library.
+The source code and the documentation is heavily based on [Factual/clj-leveldb](https://github.com/Factual/clj-leveldb) library.
 
-### basic usage
+### Basic Usage
 
 ```clj
-[kotyo/clj-rocksdb "0.1.6"]
+[kotyo/clj-rocksdb "0.1.7-SNAPSHOT"]
 ```
 
-To create or access a database, use `clj-rocksdb/create-db`:
-The returned database object can be used with `clj-rocksdb/get`, `put`, `delete`, `batch`, and `iterator`.
-RocksDB by default stores the keys and values in byte arrays. We may want to define custom encoders and decoders. This can be done in `create-db`:
+To create or access a database, use `clj-rocksdb/create-db`.
+The returned database object can be used with `clj-rocksdb/get`, `multi-get`, `put`, `delete`, `batch`, and `iterator`.
 
-Notice that the value returned is a byte-array.  This is because byte arrays are the native storage format for RocksDB, and we haven't defined custom encoders and decoders.  This can be done in `create-db`:
+By default, RocksDB stores keys and values as byte arrays. You can define custom encoders and decoders in `create-db`:
 
 ```clj
 clj-rocksdb> (def db (create-db "/tmp/rocksdb" 
@@ -40,6 +39,17 @@ If you need to batch a collection of puts and deletes, use `batch`:
 ```clj
 clj-rocksdb> (batch db {:put ["a" "b" "c" "d"] :delete ["j" "k" "l"]})
 ```
+
+To efficiently read multiple keys in a single call, use `multi-get`:
+
+```clj
+clj-rocksdb> (put db "a" "b" "c" "d" "e" "f")
+nil
+clj-rocksdb> (multi-get db ["a" "c" "e" "missing"])
+{"a" "b", "c" "d", "e" "f"}
+```
+
+Note: `multi-get` returns a sparse map - keys that don't exist are not included in the result. This uses RocksDB's `multiGetAsList` API for efficient batch retrieval.
 
 We can also get a sequence of all key/value pairs, either in the entire database or within a given range using `iterator`:
 

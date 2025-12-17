@@ -97,6 +97,7 @@
   (^:private batch- [_] [_ options])
   (^:private iterator- [_] [_ start end reverse?])
   (^:private get- [_ k])
+  (^:private multi-get- [_ ks])
   (^:private put- [_ k v options])
   (^:private del- [_ k options])
   (^:private snapshot- [_]))
@@ -112,6 +113,12 @@
   (db- [_] (db- db))
   (get- [_ k]
     (val-decoder (.get (db- db) read-options (bs/to-byte-array (key-encoder k)))))
+  (multi-get- [_ ks]
+    (let [byte-keys (java.util.ArrayList. ^java.util.Collection (mapv #(bs/to-byte-array (key-encoder %)) ks))
+          results (.multiGetAsList (db- db) read-options byte-keys)]
+      (into {}
+            (keep (fn [[k v]] (when v [k (val-decoder v)])))
+            (map vector ks results))))
   (iterator- [_ start end reverse?]
     (iterator-seq-
       (.newIterator (db- db) read-options)
@@ -161,6 +168,12 @@
     (let [k (bs/to-byte-array (key-encoder k))]
       (some-> (.get db k)
               val-decoder)))
+  (multi-get- [_ ks]
+    (let [byte-keys (java.util.ArrayList. ^java.util.Collection (mapv #(bs/to-byte-array (key-encoder %)) ks))
+          results (.multiGetAsList db byte-keys)]
+      (into {}
+            (keep (fn [[k v]] (when v [k (val-decoder v)])))
+            (map vector ks results))))
   (put- [_ k v options]
     (let [k (bs/to-byte-array (key-encoder k))
           v (bs/to-byte-array (val-encoder v))]
@@ -272,6 +285,14 @@
      (if (nil? v)
        default-value
        v))))
+
+(defn multi-get
+  "Returns a map of key->value for the given keys. Keys that don't exist are not included
+   in the result (sparse map). Uses RocksDB's multiGetAsList for efficient batch retrieval."
+  [db keys]
+  (if (empty? keys)
+    {}
+    (multi-get- db keys)))
 
 (defn snapshot
   "Returns a snapshot of the database that can be used with `get` and `iterator`. This implements
